@@ -1,0 +1,11 @@
+base
+ggplot2
+sp
+raster
+scales
+gpclib
+maps
+mapdata
+maptools
+plyr
+rgdal

@@ -1,0 +1,249 @@
+---
+title: "Analise de cluster para identificar padrões de pastagens"
+author: "Oliveira-Santos, Claudinei"
+date: "22 de setembro de 2017"
+output: 
+  html_document: 
+    fig_caption: yes
+    fig_height: 12
+    fig_width: 12
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE)
+```
+
+
+
+```{r packages and functions, message=FALSE, warning=FALSE, echo=FALSE}
+# library(ggmap) #Non exist
+library(ggplot2)
+library(gpclib)
+require(graphics)
+library(mapdata)
+library(maps)
+library(maptools)
+library(plyr)
+library(raster)
+library(rgdal)
+library(scales)
+# if (!require(gpclib)) install.packages("gpclib", type="source")
+gpclibPermit()
+source('Multiplot.r')
+```
+
+
+
+Apresentação dos pontos de campo no google docs <https://docs.google.com/presentation/d/1360Tdw5L99RntRsdW-gkXAR4MM_W_4auh4-Tz1o9GRw/edit?usp=sharing> 
+```{r tableaCSV, echo=FALSE, cache=TRUE}
+ndviPontos <- read.csv("PontosPastagem_todos/NDVI_PontosPastagem_maxminfilter.csv", sep = ",", dec = ".")
+```
+
+
+
+```{r shpFiles, echo=FALSE, cache=TRUE}
+ogrUf <- readOGR("limite_estados/pa_br_estados_250_2013_ibge_wgs84.shp", layer = "pa_br_estados_250_2013_ibge_wgs84")
+ogrCamp <- readOGR("PontosPastagem_todos/PONTOS_PASTAGEM_ok.shp", layer = "PONTOS_PASTAGEM_ok")
+ogrMatop <- readOGR("Campo_MATOPIBA/Campo_MATOPIBA_ago2017.shp", layer = "Campo_MATOPIBA_ago2017")
+```
+
+
+
+```{r editShp, echo=FALSE, cache=TRUE}
+#Editando Spatial data to plot
+
+#UF fortify
+ogrUf@data$id <- ogrUf$NM_UF
+fortfyUf = fortify(ogrUf, region = "id")
+fortfyUf = join(fortfyUf, ogrUf@data, by="id")
+
+#Field fortify
+ogrCamp$long <-  ogrCamp@coords[,1]
+ogrCamp$lat <-  ogrCamp@coords[,2]
+ogrCamp <- as.data.frame(ogrCamp)
+
+#Field Matopiba
+ogrMatop$long <-  ogrMatop@coords[,1]
+ogrMatop$lat <-  ogrMatop@coords[,2]
+ogrMatop <- as.data.frame(ogrMatop)
+ogrMatopSub <- ogrMatop[ogrMatop$Cobertura %in% grep("Past", unique(ogrMatop$Cobertura), value = TRUE) & as.character(ogrMatop$Paradas) %in% "Sim", ]
+```
+
+
+
+```{r editTableaCSV, echo=FALSE, cache=TRUE}
+#Editando ndvi para K-Means
+
+#Pontos com informações
+ndviPontosInf <- ndviPontos[is.na(ndviPontos$INFO_ADD) == FALSE,]
+
+#Último ano de dados
+ndviPontosLastYear <- ndviPontosInf[, 364:387]
+
+#ID para pegar ndvi dos grupos
+rownames(ndviPontosLastYear) <- ndviPontosInf$OBJECTID
+
+#Matriz de distância
+distPontosLastYear <- dist(ndviPontosLastYear)
+
+#Total de pontos de campo e origem
+print("Total de pontos de campo e origem")
+dim(ndviPontos)
+as.character(unique(ndviPontos$ORIGEM))
+
+#Total de pontos de campo com informações
+print("Total e origem dos pontos de campo com informações adicionais")
+dim(ndviPontosInf)
+as.character(unique(ndviPontosInf$ORIGEM))
+```
+
+
+
+## Localização dos pontos de pastagem ao longo do Brasil
+```{r Fig1 ShpPontos, echo=FALSE, cache=TRUE, fig.height=9, fig.width=9, fig.align="center"}
+#Pontos de pastagem
+ggplot(data = fortfyUf) +
+  # geom_polygon(aes(x = long, y = lat, fill = NM_UF, group = group), colour = "gray") + 
+  geom_polygon(aes(x = long, y = lat, group = group), fill = "gray", colour = "black") + 
+  geom_point(data = ogrCamp, aes(x = long, y = lat), colour = "blue", lwd = 0.2) + 
+  geom_point(data = ogrMatopSub, aes(x = long, y = lat), colour = "red", lwd = 0.2) + 
+  labs(title = "Pastagem: Pontos de campo", x = "longitude", y = 'latitude') +
+  guides(colour=TRUE, fill = TRUE) + #remove legenda
+  coord_equal() + 
+  theme_dark()
+```
+
+
+
+## Curva média e desvio padrão do NDVI para o último anos
+```{r meanCols, echo=FALSE, cache=TRUE}
+#Curva média do NDVI para o último ano
+meanPontosLastYear <- colMeans(ndviPontosLastYear)
+sdPontosLastYear <- apply(ndviPontosLastYear, 2, FUN = sd)
+```
+
+
+
+```{r Fig2 meanCols, echo=FALSE, cache=TRUE, fig.height=6, fig.width=6, fig.align="center"}
+#Plot curva média e sd NDVI do último ano
+plot(meanPontosLastYear, t = "l", col = "black", lwd = 2, ylim = c(0,1))
+apply(ndviPontosLastYear, 1, FUN = lines, col = "gray")
+lines(meanPontosLastYear + sdPontosLastYear, col = "red")
+lines(meanPontosLastYear - sdPontosLastYear, col = "red")
+lines(meanPontosLastYear, col = "black", lwd = 2)
+```
+
+
+
+## Grupos de pastagens (Kmeans)
+```{r ndviKMeans, echo=FALSE, cache=TRUE}
+#Kmeans analise
+clKm <- kmeans(ndviPontosLastYear, 6)
+table(clKm$cluster)
+clKmClust <- clKm$cluster
+
+#Identificar dos Pixels em cada grupo
+idGroups <- list()
+for(i in 1:length(clKm$size)){
+  idGroups[[i]] <- as.numeric(
+    names(clKmClust[clKmClust == i]))
+}
+
+# NDVI em cada grupo (último ano)
+ndviGroups <- lapply(idGroups, function(x) { ndviPontos[ndviPontos$OBJECTID %in% x, 364:387] })
+
+#Mean, sd, upper e lower for ndvi by group
+meanNdviGroups <- lapply(ndviGroups,
+                         function(x) {cbind(MEAN = colMeans(x),
+                                            SD = apply(x, 2, FUN = sd),
+                                            UPPER = colMeans(x) + apply(x, 2, FUN = sd),
+                                            LOWER = colMeans(x) - apply(x, 2, FUN = sd))})
+meanEndviGroups <- list()
+for (i in 1:length(ndviGroups)){
+meanEndviGroups[[i]] <- cbind(meanNdviGroups[[i]], t(ndviGroups[[i]]))
+}
+```
+
+
+
+## Centroid dos grupos de cluster Kmeans
+```{r fig KmeansCenter, include=FALSE, echo=FALSE, cache=TRUE, fig.height=6, fig.width=6, fig.align="center", message=FALSE, warning=FALSE}
+#Kmeans Centroid
+plot(clKm$centers, col = 1:length(clKm$size), pch = 8, t = "p")
+# plot(clKm$centers[1,], col = 1:8, pch = 8, t = "l", ylim = c(0,1))
+# apply(clKm$centers, 1, lines, pch = 8, t = "l")
+legend("bottomright", fill = 1:length(clKm$size), legend = c("Center 1", "Center 2", "Center 3", "Center 4", "Center 5", "Center 6"))
+```
+
+
+
+## Localização dos pontos de pastagem em cada grupo definido pelo Kmeans
+```{r local pontosKmeas, echo=FALSE, cache=TRUE, fig.height=12, fig.width=8, fig.align="center"}
+#Locations of pasture points
+shpGroups <- lapply(idGroups, function(x) { ogrCamp[ogrCamp$OBJECTID %in% x, ] })
+```
+
+
+
+## Localização dos grupos de cluster Kmeans
+```{r Fig1 kmeansGruposSHP, echo=FALSE, cache=TRUE, fig.height=10, fig.width=15, fig.align="center"}
+#Plot location of pasture points
+gPlot <- lapply(shpGroups, function (ptCamp) { 
+  ggplot(data = fortfyUf) +
+  geom_polygon(aes(x = long, y = lat, group = group), fill = "gray", colour = "black") + 
+  geom_point(data = ptCamp, aes(x = long, y = lat), colour = "red", lwd = 0.2) + 
+  guides(colour=TRUE, fill = TRUE) + #remove legenda
+  coord_equal() + 
+  theme_dark()
+})
+
+#Multiplot graph
+multiplot(gPlot[[1]], gPlot[[2]], gPlot[[3]], gPlot[[4]], gPlot[[5]], gPlot[[6]], cols = 3)
+```
+
+
+
+## Padrão dos grupos de cluster Kmeans
+```{r Fig1 kmeansGruposNVDI, echo=FALSE, cache=TRUE, cache.rebuild=FALSE, fig.height=15, fig.width=10, fig.align="center", warning=FALSE, message=FALSE}
+par(mfrow = c(3,2))
+# Grupo 1
+lapply(meanEndviGroups, function(x){ 
+  plot(as.numeric(x[,"MEAN"]), t = "l", col = "black", lwd = 2, ylim = c(0,1), ylab = "NDVI", xlab = "TIME")
+    apply(x[,-c(1:4)], 2, FUN = lines, col = "gray")
+    lines(as.numeric(x[,"UPPER"]), col = "red")
+    lines(as.numeric(x[,"LOWER"]), col = "red")
+    lines(as.numeric(x[,"MEAN"]), col = "black", lwd = 2)
+  })
+```
+
+
+
+## Padrão dos grupos de cluster Kmeans
+```{r Fig1 kmeansGrupos, echo=FALSE, cache=TRUE, cache.rebuild=TRUE, fig.height=8, fig.width=8, fig.align="center", message=FALSE, warning=FALSE}
+plot(meanPontosLastYear, t = "l", col = "black", lwd = 2, ylim = c(0,1))
+lines(meanEndviGroups[[1]][,"MEAN"], col = "darkgreen", lty = 1, lwd = 1, ylim = c(0,1))
+lines(meanEndviGroups[[2]][,"MEAN"], col = "blue", lty = 1, lwd = 1, ylim = c(0,1))
+lines(meanEndviGroups[[3]][,"MEAN"], col = "red", lty = 1, lwd = 1, ylim = c(0,1))
+lines(meanEndviGroups[[4]][,"MEAN"], col = "darkorange", lty = 1, lwd = 1, ylim = c(0,1))
+lines(meanEndviGroups[[5]][,"MEAN"], col = "purple", lty = 1, lwd = 1, ylim = c(0,1))
+lines(meanEndviGroups[[6]][,"MEAN"], col = "brown", lty = 1, lwd = 1, ylim = c(0,1))
+legend("bottomright",
+       fill = c("black", 'darkgreen', 'blue', 'red', 'darkorange', "purple", "brown"),
+       legend = c("MeanAll", "meanGroup1", "meanGroup2", "meanGroup3", "meanGroup4", "meanGroup4", "meanGroup6"))
+
+```
+
+
+
+
+```{r Fig sampleGroupsNDVI, echo=FALSE, cache=TRUE, fig.height=12, fig.width=12, fig.align="center", message=FALSE, warning=FALSE}
+par(mfrow = c(3,2))
+lapply(meanEndviGroups, function(x){ 
+  #Sample 3 pixels by group
+  NDVI <- x[,sample(5:ncol(x),3)]
+  plot(as.numeric(NDVI[,1]), t = "l", col = "black", lwd = 1, ylim = c(0,1), ylab = "NDVI", xlab = "TIME")
+    apply(NDVI, 2, FUN = lines, col = "black")
+  })
+```
+
+

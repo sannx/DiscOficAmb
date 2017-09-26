@@ -1,0 +1,2 @@
+"0","#Plot curva média e sd NDVI do último ano"
+"0","plot(meanPontosLastYear, t = ""l"", col = ""black"", lwd = 2, ylim = c(0,1))"

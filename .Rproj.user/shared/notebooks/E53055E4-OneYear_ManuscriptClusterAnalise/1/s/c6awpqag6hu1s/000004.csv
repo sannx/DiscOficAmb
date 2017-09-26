@@ -1,0 +1,3 @@
+"0","apply(ndviPontosLastYear, 1, FUN = lines, col = ""gray"")"
+"1","NULL
+"

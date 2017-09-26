@@ -1,0 +1,4 @@
+"0","                                            LOWER = colMeans(x) - apply(x, 2, FUN = sd))})
+"
+"2","Erro: ')' inesperado in ""                                            LOWER = colMeans(x) - apply(x, 2, FUN = sd))""
+"

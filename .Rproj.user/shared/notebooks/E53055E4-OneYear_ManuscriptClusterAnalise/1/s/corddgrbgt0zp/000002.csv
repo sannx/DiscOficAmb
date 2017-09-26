@@ -1,0 +1,3 @@
+"0","#Curva média do NDVI para o último ano"
+"0","meanPontosLastYear <- colMeans(ndviPontosLastYear)"
+"0","sdPontosLastYear <- apply(ndviPontosLastYear, 2, FUN = sd)"

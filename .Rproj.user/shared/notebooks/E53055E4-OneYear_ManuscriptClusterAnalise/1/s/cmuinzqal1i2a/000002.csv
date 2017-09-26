@@ -1,0 +1,1 @@
+"0","ndviPontos <- read.csv(""PontosPastagem_todos/NDVI_PontosPastagem_maxminfilter.csv"", sep = "","", dec = ""."")"

@@ -1,0 +1,339 @@
+---
+title: "Análise das estratégias parar reamostrar a máscara de pastagens do Brasil"
+author: "Oliveira-Santos, Claudinei"
+date: "19 de setembro de 2017"
+output: 
+  html_document: 
+    fig_caption: yes
+    fig_height: 12
+    fig_width: 12
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE)
+```
+
+
+
+```{r packages, message=FALSE, warning=FALSE, echo=FALSE}
+library(ggplot2)
+require(graphics)
+library(raster)
+library(scales)
+```
+
+Apresentação dos pontos de campo no google docs <https://docs.google.com/presentation/d/1360Tdw5L99RntRsdW-gkXAR4MM_W_4auh4-Tz1o9GRw/edit?usp=sharing> 
+
+
+```{r tableaCSV, echo=FALSE, cache=TRUE}
+ndviPontos <- read.csv("PontosPastagem_todos/NDVI_PontosPastagem_maxminfilter.csv", sep = ",", dec = ".")
+xyPontos <- read.csv("PontosPastagem_todos/PontosPastagem.csv", sep = ",", dec = ".")
+
+ndviPontos2 <- ndviPontos[is.na(ndviPontos$INFO_ADD) == FALSE,]
+
+ndviPontos3 <- ndviPontos2[,-c(1:8)]
+rownames(ndviPontos3) <- ndviPontos2$OBJECTID
+# ndviPontos4 <- ndviPontos3[, 369:391]
+distPontos4 <- dist(ndviPontos3)
+
+print("Origem de todos os pontos de campo")
+dim(ndviPontos)
+as.character(unique(ndviPontos$ORIGEM))
+
+print("Excluido os pontos de campo sem informações de qualidade")
+as.character(unique(ndviPontos2$ORIGEM))
+dim(ndviPontos2)
+
+# as.character(unique(ndviPontos2$INFO_ADD))
+```
+
+
+
+```{r pastAreasFiles, echo=FALSE, cache=TRUE}
+shpCamp <- shapefile("PontosPastagem_todos/PONTOS_PASTAGEM_ok.shp")
+shpEstados <- shapefile("limite_estados/pa_br_estados_250_2013_ibge_wgs84.shp")
+
+shpCamp2 <- shpCamp[shpCamp$ORIGEM %in% as.character(unique(ndviPontos2$ORIGEM)),]
+
+# shpCamp
+# shpCamp2
+```
+
+
+
+```{r Fig1 ShpPontos, echo=FALSE, cache=TRUE, fig.height=9, fig.width=18, fig.align="center"}
+par(mfrow = c(1,2))
+plot(shpEstados)
+plot(shpCamp, pch = 16, lwd = 0.5, add = TRUE, col = "darkgreen", main = "todos os pontos de campo")
+#plot(shpEstados)
+plot(shpCamp2, pch = 16, lwd = 0.5, add = TRUE, col = "blue", main = "pontos com inforações adicionais")
+```
+
+
+## Curva media do NDVI
+
+```{r Fig2 meanCols, echo=FALSE, cache=TRUE, fig.height=9, fig.width=18, fig.align="center"}
+meanPontos3 <- colMeans(ndviPontos3)
+sdPontos3 <- apply(ndviPontos3, 2, FUN = sd)
+plot(meanPontos3, t = "l", col = "black", lwd = 2, ylim = c(0,1))
+lines(meanPontos3 + sdPontos3, col = "gray")
+lines(meanPontos3 - sdPontos3, col = "gray")
+```
+
+
+
+```{r Fig2 Cluster, include=FALSE, echo=FALSE, cache=TRUE, fig.height=6, fig.width=12, fig.align="center"}
+ clustPontos4 <- hclust(distPontos4, "ave")
+#  plot(clustPontos4, hang = -1)
+# 
+# clustPontos4 <- hclust(distPontos4, "cent")
+memb <- cutree(clustPontos4, k = 10)
+cent <- NULL
+for(k in 1:10){
+  cent <- rbind(cent, colMeans(ndviPontos3[memb == k, , drop = FALSE]))
+}
+hc1 <- hclust(dist(cent)^2, method = "cen", members = table(memb))
+opar <- par(mfrow = c(1, 2))
+plot(clustPontos4,  labels = FALSE, main = "Original Tree")
+plot(hc1, labels = FALSE, hang = -1, main = "Re-start from 10 clusters")
+par(opar)
+
+```
+
+
+
+```{r ndviGrupos, include=FALSE, echo=FALSE, cache=TRUE, fig.height=6, fig.width=12, fig.align="center"}
+
+cutPontos4 <- cutree(clustPontos4, 10)
+table(cutPontos4)
+
+# Grupo 1
+idGroup1 <- as.numeric(names(cutPontos4[cutPontos4 == 1]))
+ndviGroup1<- ndviPontos2[ndviPontos2$OBJECTID %in% idGroup1, -c(1:8)]
+
+meanGroup1 <- colMeans(ndviGroup1)
+sdGroup1 <- apply(ndviGroup1, 2, FUN = sd)
+plot(meanGroup1, t = "l", col = "black", lwd = 2, ylim = c(0,1))
+lines(meanGroup1 + sdGroup1, col = "gray")
+lines(meanGroup1 - sdGroup1, col = "gray")
+
+# Grupo 2
+idGroup2 <- as.numeric(names(cutPontos4[cutPontos4 == 2]))
+ndviGroup2 <- ndviPontos2[ndviPontos2$OBJECTID %in% idGroup2, -c(1:8)]
+
+meanGroup2 <- colMeans(ndviGroup2)
+sdGroup2 <- apply(ndviGroup2, 2, FUN = sd)
+plot(meanGroup2, t = "l", col = "black", lwd = 2, ylim = c(0,1))
+lines(meanGroup2 + sdGroup2, col = "gray")
+lines(meanGroup2 - sdGroup2, col = "gray")
+
+
+# Grupo 3
+idGroup3 <- as.numeric(names(cutPontos4[cutPontos4 == 3]))
+ndviGroup3 <- ndviPontos2[ndviPontos2$OBJECTID %in% idGroup3, -c(1:8)]
+
+meanGroup3 <- colMeans(ndviGroup3)
+sdGroup3 <- apply(ndviGroup3, 2, FUN = sd)
+plot(meanGroup3, t = "l", col = "black", lwd = 2, ylim = c(0,1))
+lines(meanGroup3 + sdGroup3, col = "gray")
+lines(meanGroup3 - sdGroup3, col = "gray")
+
+
+plot(meanPontos3, t = "l", col = "black", lwd = 2, ylim = c(0,1))
+lines(meanGroup1, col = "darkgreen", lty = 2, lwd = 1, ylim = c(0,1))
+lines(meanGroup2, col = "blue", lty = 2, lwd = 1, ylim = c(0,1))
+lines(meanGroup3, col = "red", lty = 2, lwd = 1, ylim = c(0,1))
+legend("bottomright", fill = c("black", 'darkgreen', 'blue', 'red'), legend = c("meanPontos3", "meanGroup1", "meanGroup2", "meanGroup3"))
+
+```
+
+CLUSTER
+
+```{r Fig1 ShpGrupos, include=FALSE, echo=FALSE, cache=TRUE, fig.height=9, fig.width=18, fig.align="center"}
+shpG1 <- shpCamp[shpCamp$OBJECTID %in% idGroup1,]
+plot(shpEstados)
+plot(shpG1, pch = 16, lwd = 0.5, add = TRUE, col = "darkgreen")
+
+shpG2 <- shpCamp[shpCamp$OBJECTID %in% idGroup2,]
+plot(shpEstados)
+plot(shpG2, pch = 16, lwd = 0.5, add = TRUE, col = "blue")
+
+shpG3 <- shpCamp[shpCamp$OBJECTID %in% idGroup3,]
+plot(shpEstados)
+plot(shpG3, pch = 16, lwd = 0.5, add = TRUE, col = "red")
+
+```
+
+
+KMEANS GROUPS
+
+```{r Fig2 KMeans, echo=FALSE, cache=TRUE, fig.height=6, fig.width=12, fig.align="center"}
+ kmeansPontos4 <- kmeans(ndviPontos3, 6)
+#  plot(clustPontos4, hang = -1)
+# 
+# clustPontos4 <- hclust(distPontos4, "cent")
+plot(kmeansPontos4$centers, col = 1:2, pch = 8, cex = 2)
+str(kmeansPontos4)
+table(kmeansPontos4$cluster)
+
+clKmnsPt4 <- kmeansPontos4$cluster
+
+idGroup1 <- as.numeric(names(clKmnsPt4[clKmnsPt4 == 1]))
+idGroup2 <- as.numeric(names(clKmnsPt4[clKmnsPt4 == 2]))
+idGroup3 <- as.numeric(names(clKmnsPt4[clKmnsPt4 == 3]))
+idGroup4 <- as.numeric(names(clKmnsPt4[clKmnsPt4 == 4]))
+idGroup5 <- as.numeric(names(clKmnsPt4[clKmnsPt4 == 5]))
+idGroup6 <- as.numeric(names(clKmnsPt4[clKmnsPt4 == 6]))
+
+
+ndviGroup1 <- ndviPontos2[ndviPontos2$OBJECTID %in% idGroup1, -c(1:8)]
+ndviGroup2 <- ndviPontos2[ndviPontos2$OBJECTID %in% idGroup2, -c(1:8)]
+ndviGroup3 <- ndviPontos2[ndviPontos2$OBJECTID %in% idGroup3, -c(1:8)]
+ndviGroup4 <- ndviPontos2[ndviPontos2$OBJECTID %in% idGroup4, -c(1:8)]
+ndviGroup5 <- ndviPontos2[ndviPontos2$OBJECTID %in% idGroup5, -c(1:8)]
+ndviGroup6 <- ndviPontos2[ndviPontos2$OBJECTID %in% idGroup6, -c(1:8)]
+```
+
+
+CLUSTER
+```{r Fig1 kmeansGruposSHP, echo=FALSE, cache=TRUE, fig.height=12, fig.width=8, fig.align="center"}
+par(mfrow = c(3,2))
+
+shpG1 <- shpCamp[shpCamp$OBJECTID %in% idGroup1,]
+plot(shpEstados)
+plot(shpG1, pch = 16, lwd = 0.5, add = TRUE, col = "darkgreen", main = "KmeansGroup1")
+# legend("topright", fill = c("darkgreen"), legend = c("KmeansGroup1"))
+
+shpG2 <- shpCamp[shpCamp$OBJECTID %in% idGroup2,]
+plot(shpEstados)
+plot(shpG2, pch = 16, lwd = 0.5, add = TRUE, col = "blue", main = "KmeansGroup2")
+
+shpG3 <- shpCamp[shpCamp$OBJECTID %in% idGroup3,]
+plot(shpEstados)
+plot(shpG3, pch = 16, lwd = 0.5, add = TRUE, col = "red", main = "KmeansGroup3")
+
+shpG4 <- shpCamp[shpCamp$OBJECTID %in% idGroup4,]
+plot(shpEstados)
+plot(shpG4, pch = 16, lwd = 0.5, add = TRUE, col = "darkorange", main = "KmeansGroup4")
+
+shpG5 <- shpCamp[shpCamp$OBJECTID %in% idGroup5,]
+plot(shpEstados)
+plot(shpG5, pch = 16, lwd = 0.5, add = TRUE, col = "purple", main = "KmeansGroup5")
+
+shpG6 <- shpCamp[shpCamp$OBJECTID %in% idGroup6,]
+plot(shpEstados)
+plot(shpG6, pch = 16, lwd = 0.5, add = TRUE, col = "brown", main = "KmeansGroup6")
+
+```
+
+
+
+CLUSTER
+```{r Fig1 kmeansGruposNVDI, echo=FALSE, cache=TRUE, fig.height=12, fig.width=12, fig.align="center"}
+par(mfrow = c(3,2))
+# Grupo 1
+meanGroup1 <- colMeans(ndviGroup1)
+sdGroup1 <- apply(ndviGroup1, 2, FUN = sd)
+plot(meanGroup1, t = "l", col = "black", lwd = 2, ylim = c(0,1))
+lines(meanGroup1 + sdGroup1, col = "gray")
+lines(meanGroup1 - sdGroup1, col = "gray")
+
+# Grupo 2
+meanGroup2 <- colMeans(ndviGroup2)
+sdGroup2 <- apply(ndviGroup2, 2, FUN = sd)
+plot(meanGroup2, t = "l", col = "black", lwd = 2, ylim = c(0,1))
+lines(meanGroup2 + sdGroup2, col = "gray")
+lines(meanGroup2 - sdGroup2, col = "gray")
+
+# Grupo 3
+meanGroup3 <- colMeans(ndviGroup3)
+sdGroup3 <- apply(ndviGroup3, 2, FUN = sd)
+plot(meanGroup3, t = "l", col = "black", lwd = 2, ylim = c(0,1))
+lines(meanGroup3 + sdGroup3, col = "gray")
+lines(meanGroup3 - sdGroup3, col = "gray")
+
+# Grupo 4
+meanGroup4 <- colMeans(ndviGroup4)
+sdGroup4 <- apply(ndviGroup4, 2, FUN = sd)
+plot(meanGroup4, t = "l", col = "black", lwd = 2, ylim = c(0,1))
+lines(meanGroup4 + sdGroup4, col = "gray")
+lines(meanGroup4 - sdGroup4, col = "gray")
+
+# Grupo 5
+meanGroup5 <- colMeans(ndviGroup5)
+sdGroup5 <- apply(ndviGroup5, 2, FUN = sd)
+plot(meanGroup5, t = "l", col = "black", lwd = 2, ylim = c(0,1))
+lines(meanGroup5 + sdGroup5, col = "gray")
+lines(meanGroup5 - sdGroup5, col = "gray")
+
+# Grupo 6
+meanGroup6 <- colMeans(ndviGroup6)
+sdGroup6 <- apply(ndviGroup6, 2, FUN = sd)
+plot(meanGroup6, t = "l", col = "black", lwd = 2, ylim = c(0,1))
+lines(meanGroup6 + sdGroup6, col = "gray")
+lines(meanGroup6 - sdGroup6, col = "gray")
+
+
+```
+
+
+
+CLUSTER
+```{r Fig1 kmeansGrupos, echo=FALSE, cache=TRUE, fig.height=6, fig.width=12, fig.align="center"}
+plot(meanPontos3, t = "l", col = "black", lwd = 2, ylim = c(0,1))
+lines(meanGroup1, col = "darkgreen", lty = 2, lwd = 1, ylim = c(0,1))
+lines(meanGroup2, col = "blue", lty = 2, lwd = 1, ylim = c(0,1))
+lines(meanGroup3, col = "red", lty = 2, lwd = 1, ylim = c(0,1))
+lines(meanGroup4, col = "darkorange", lty = 2, lwd = 1, ylim = c(0,1))
+lines(meanGroup5, col = "purple", lty = 2, lwd = 1, ylim = c(0,1))
+lines(meanGroup6, col = "brown", lty = 2, lwd = 1, ylim = c(0,1))
+legend("bottomright",
+       fill = c("black", 'darkgreen', 'blue', 'red', 'darkorange', "purple", "brown"),
+       legend = c("meanPontos3", "meanGroup1", "meanGroup2", "meanGroup3", "meanGroup4", "meanGroup4", "meanGroup6"))
+
+```
+
+
+
+```{r Fig1 sampleGroupsNDVI, echo=FALSE, cache=TRUE, fig.height=18, fig.width=9, fig.align="center"}
+sampNdviGroup1 <- ndviPontos2[ndviPontos2$OBJECTID %in% sample(idGroup1, 3), -c(1:8)]
+sampNdviGroup2 <- ndviPontos2[ndviPontos2$OBJECTID %in% sample(idGroup2, 3), -c(1:8)]
+sampNdviGroup3 <- ndviPontos2[ndviPontos2$OBJECTID %in% sample(idGroup3, 3), -c(1:8)]
+sampNdviGroup4 <- ndviPontos2[ndviPontos2$OBJECTID %in% sample(idGroup4, 3), -c(1:8)]
+sampNdviGroup5 <- ndviPontos2[ndviPontos2$OBJECTID %in% sample(idGroup5, 3), -c(1:8)]
+sampNdviGroup6 <- ndviPontos2[ndviPontos2$OBJECTID %in% sample(idGroup6, 3), -c(1:8)]
+
+
+par(mfrow = c(6,1))
+# Grupo 1
+plot(as.numeric(sampNdviGroup1[1,]), t = "l", col = "black", lwd = 1, ylim = c(0,1), ylab = "ndvi", main = "Group1")
+lines(as.numeric(sampNdviGroup1[2,]), col = "black")
+lines(as.numeric(sampNdviGroup1[3,]), col = "black")
+
+# Grupo 2
+plot(as.numeric(sampNdviGroup2[1,]), t = "l", col = "black", lwd = 1, ylim = c(0,1), ylab = "ndvi", main = "Group2")
+lines(as.numeric(sampNdviGroup2[2,]), col = "black")
+lines(as.numeric(sampNdviGroup2[3,]), col = "black")
+
+# Grupo 3
+plot(as.numeric(sampNdviGroup3[1,]), t = "l", col = "black", lwd = 1, ylim = c(0,1), ylab = "ndvi", main = "Group3")
+lines(as.numeric(sampNdviGroup3[2,]), col = "black")
+lines(as.numeric(sampNdviGroup3[3,]), col = "black")
+
+# Grupo 4
+plot(as.numeric(sampNdviGroup4[1,]), t = "l", col = "black", lwd = 1, ylim = c(0,1), ylab = "ndvi", main = "Group4")
+lines(as.numeric(sampNdviGroup4[2,]), col = "black")
+lines(as.numeric(sampNdviGroup4[3,]), col = "black")
+
+# Grupo 5
+plot(as.numeric(sampNdviGroup5[1,]), t = "l", col = "black", lwd = 1, ylim = c(0,1), ylab = "ndvi", main = "Group5")
+lines(as.numeric(sampNdviGroup5[2,]), col = "black")
+lines(as.numeric(sampNdviGroup5[3,]), col = "black")
+
+# Grupo 6
+plot(as.numeric(sampNdviGroup6[1,]), t = "l", col = "black", lwd = 1, ylim = c(0,1), ylab = "ndvi", main = "Group6")
+lines(as.numeric(sampNdviGroup6[2,]), col = "black")
+lines(as.numeric(sampNdviGroup6[3,]), col = "black")
+
+```
+

@@ -1,0 +1,2 @@
+"0","#Kmeans Centroid"
+"0","plot(clKm$centers, col = 1:length(clKm$size), pch = 8, t = ""p"")"

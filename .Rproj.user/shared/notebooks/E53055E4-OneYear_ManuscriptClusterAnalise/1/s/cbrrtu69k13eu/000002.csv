@@ -1,0 +1,2 @@
+"0","#Locations of pasture points"
+"0","shpGroups <- lapply(idGroups, function(x) { ogrCamp[ogrCamp$OBJECTID %in% x, ] })"

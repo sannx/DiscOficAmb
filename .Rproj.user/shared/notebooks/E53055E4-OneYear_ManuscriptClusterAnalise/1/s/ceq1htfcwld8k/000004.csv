@@ -1,0 +1,3 @@
+"0","# plot(clKm$centers[1,], col = 1:8, pch = 8, t = ""l"", ylim = c(0,1))"
+"0","# apply(clKm$centers, 1, lines, pch = 8, t = ""l"")"
+"0","legend(""bottomright"", fill = 1:length(clKm$size), legend = c(""Center 1"", ""Center 2"", ""Center 3"", ""Center 4"", ""Center 5"", ""Center 6""))"
